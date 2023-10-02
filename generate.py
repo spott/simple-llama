@@ -12,18 +12,29 @@ import torch.nn.functional as F
 logger = getLogger("__name__")
 
 class Llama:
+    """
+    This class is the main entrypoint for doing inference on llama models.
+
+    The `build` method allows you to build the model from a set of checkpoint
+    weights and a tokenizer model.
+
+    The `generate` method 
+    """
     @staticmethod
     def build(
         ckpt_dir: str,
         tokenizer_path: str,
-        max_seq_len: int,
-        max_batch_size: int,
+        max_seq_len: int = 4096,
+        max_batch_size: int = 1,
         model_parallel_size: Optional[int] = None,
-        device: str = "mps",
+        device: str = "cpu",
         float_type = torch.FloatTensor) -> "Llama":
+
+        assert float_type in [torch.FloatTensor, torch.cuda.HalfTensor], "Only support cuda HalfTensor and FloatTensor"
         
         assert model_parallel_size is None, "This version doesn't support model parallel"
-            
+        
+        # Set the seed to ensure reproducability
         torch.manual_seed(42)
 
         start_time = time.time()
@@ -39,17 +50,18 @@ class Llama:
 
         params["max_seq_len"] = max_seq_len
         params["max_batch_size"] = max_batch_size
+        # This parameter is None for the smaller model we are working with.
         params["ffn_dim_multiplier"] = None
 
-
-        model_args = params # because it makes things easier
-
+        # load the tokenizer, and get the vocab size from it.
         tokenizer = Tokenizer(model_path=tokenizer_path)
-        model_args["vocab_size"] = tokenizer.n_words
+        params["vocab_size"] = tokenizer.n_words
 
-        logger.info(f"model_args: {model_args}")
+        logger.info(f"{params=}")
+        
+        # set the default tensor type.  This 
         torch.set_default_tensor_type(float_type)
-        model = Transformer(**model_args)
+        model = Transformer(**params)
 
         logger.info(f"state_dict_map: {list(checkpoint.keys())}")
 
